@@ -1,0 +1,1422 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Classic Iron — AI Car Analyzer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=DM+Mono:wght@300;400;500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<!-- GEMINI_KEY_INJECT -->
+<style>
+  :root {
+    --bg:        #0c0b09;
+    --surface:   #161410;
+    --card:      #1d1b17;
+    --border:    #2e2b24;
+    --gold:      #c9a84c;
+    --gold-dim:  #8a6e30;
+    --gold-glow: rgba(201,168,76,0.12);
+    --cream:     #f0e8d8;
+    --muted:     #7a7060;
+    --red:       #d45b5b;
+    --green:     #6ab87a;
+    --amber:     #d4954a;
+    --text:      #e8e0d0;
+    --radius:    6px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 15px;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ─── NOISE TEXTURE ─── */
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+    pointer-events: none; z-index: 0; opacity: 0.5;
+  }
+
+  /* ─── HEADER ─── */
+  header {
+    position: relative;
+    padding: 28px 20px 20px;
+    text-align: center;
+    border-bottom: 1px solid var(--border);
+    background: linear-gradient(180deg, #1a1710 0%, var(--bg) 100%);
+  }
+
+  .logo-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 6px;
+  }
+
+  .logo-icon {
+    width: 36px; height: 36px;
+    border: 1.5px solid var(--gold);
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 17px;
+  }
+
+  header h1 {
+    font-family: 'Playfair Display', serif;
+    font-size: 26px;
+    letter-spacing: 0.04em;
+    color: var(--cream);
+  }
+
+  header h1 em {
+    color: var(--gold);
+    font-style: italic;
+  }
+
+  header p {
+    font-size: 12px;
+    color: var(--muted);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-top: 4px;
+    font-family: 'DM Mono', monospace;
+  }
+
+  .gold-line {
+    width: 60px; height: 1px;
+    background: linear-gradient(90deg, transparent, var(--gold), transparent);
+    margin: 12px auto 0;
+  }
+
+  /* ─── MAIN ─── */
+  main {
+    position: relative; z-index: 1;
+    max-width: 640px;
+    margin: 0 auto;
+    padding: 20px 16px 60px;
+    display: flex; flex-direction: column; gap: 20px;
+  }
+
+  /* ─── SECTION CARDS ─── */
+  .section {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+
+  .section-header {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 10px;
+    background: var(--surface);
+  }
+
+  .section-header .sect-icon {
+    font-size: 15px;
+    width: 28px; height: 28px;
+    background: var(--gold-glow);
+    border: 1px solid var(--gold-dim);
+    border-radius: 4px;
+    display: flex; align-items: center; justify-content: center;
+  }
+
+  .section-header h2 {
+    font-family: 'Playfair Display', serif;
+    font-size: 15px;
+    font-weight: 400;
+    color: var(--cream);
+    letter-spacing: 0.03em;
+  }
+
+  .section-header .sect-sub {
+    font-size: 11px;
+    color: var(--muted);
+    font-family: 'DM Mono', monospace;
+    margin-left: auto;
+    letter-spacing: 0.08em;
+  }
+
+  .section-body { padding: 16px; }
+
+  /* ─── PHOTO GRID ─── */
+  .photo-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+  }
+
+  .photo-slot {
+    aspect-ratio: 1;
+    background: var(--surface);
+    border: 1px dashed var(--border);
+    border-radius: var(--radius);
+    cursor: pointer;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    gap: 4px;
+    transition: all 0.2s;
+    position: relative;
+    overflow: hidden;
+  }
+  .photo-slot:hover { border-color: var(--gold-dim); background: var(--gold-glow); }
+
+  .photo-slot .slot-icon { font-size: 18px; opacity: 0.5; }
+  .photo-slot .slot-label {
+    font-size: 9px;
+    color: var(--muted);
+    text-align: center;
+    font-family: 'DM Mono', monospace;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    line-height: 1.3;
+  }
+
+  .photo-slot img {
+    position: absolute; inset: 0;
+    width: 100%; height: 100%;
+    object-fit: cover;
+  }
+
+  .photo-slot .remove-btn {
+    position: absolute; top: 3px; right: 3px;
+    width: 18px; height: 18px;
+    background: rgba(0,0,0,0.7);
+    border: none; border-radius: 50%;
+    color: #fff; font-size: 11px;
+    cursor: pointer; display: none;
+    align-items: center; justify-content: center;
+    z-index: 2;
+  }
+  .photo-slot:hover .remove-btn { display: flex; }
+
+  .photo-slot.has-photo { border-style: solid; border-color: var(--gold-dim); }
+  .photo-slot.has-photo .slot-icon,
+  .photo-slot.has-photo .slot-label { display: none; }
+
+  /* ─── VIDEO SECTION ─── */
+  .video-controls {
+    display: flex; gap: 10px;
+  }
+
+  .btn-video {
+    flex: 1;
+    background: var(--surface);
+    border: 1px dashed var(--border);
+    border-radius: var(--radius);
+    color: var(--muted);
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    letter-spacing: 0.08em;
+    padding: 14px 10px;
+    cursor: pointer;
+    display: flex; flex-direction: column;
+    align-items: center; gap: 6px;
+    transition: all 0.2s;
+    text-align: center;
+  }
+  .btn-video:hover { border-color: var(--gold-dim); color: var(--gold); }
+  .btn-video.active { border-color: var(--green); border-style: solid; color: var(--green); background: rgba(106,184,122,0.08); }
+  .btn-video span:first-child { font-size: 20px; }
+
+  .video-hint {
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 8px;
+    font-family: 'DM Mono', monospace;
+    line-height: 1.5;
+  }
+
+  /* ─── NOTES ─── */
+  textarea {
+    width: 100%;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 12px 14px;
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    resize: vertical;
+    min-height: 80px;
+    outline: none;
+    transition: border-color 0.2s;
+    line-height: 1.5;
+  }
+  textarea:focus { border-color: var(--gold-dim); }
+  textarea::placeholder { color: var(--muted); }
+
+  /* ─── ANALYZE BUTTON ─── */
+  .btn-analyze {
+    width: 100%;
+    background: linear-gradient(135deg, #2a2210, #1a1608);
+    border: 1px solid var(--gold-dim);
+    border-radius: var(--radius);
+    color: var(--gold);
+    font-family: 'Playfair Display', serif;
+    font-size: 18px;
+    font-style: italic;
+    letter-spacing: 0.05em;
+    padding: 18px;
+    cursor: pointer;
+    transition: all 0.3s;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .btn-analyze::before {
+    content: '';
+    position: absolute; inset: 0;
+    background: linear-gradient(135deg, var(--gold-glow), transparent);
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+  .btn-analyze:hover::before { opacity: 1; }
+  .btn-analyze:hover { border-color: var(--gold); box-shadow: 0 0 20px rgba(201,168,76,0.15); }
+  .btn-analyze:disabled {
+    opacity: 0.4; cursor: not-allowed;
+    border-color: var(--border);
+    color: var(--muted);
+  }
+
+  /* ─── PROGRESS ─── */
+  #progressSection {
+    display: none;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px;
+    text-align: center;
+  }
+
+  .progress-spinner {
+    width: 40px; height: 40px;
+    border: 2px solid var(--border);
+    border-top-color: var(--gold);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin: 0 auto 14px;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .progress-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    color: var(--gold);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+
+  .progress-sub {
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 6px;
+  }
+
+  /* ─── RESULTS ─── */
+  #results { display: none; }
+
+  .result-header {
+    background: linear-gradient(135deg, #1e1b12, #161410);
+    border: 1px solid var(--gold-dim);
+    border-radius: var(--radius);
+    padding: 20px;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .result-header::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0; height: 2px;
+    background: linear-gradient(90deg, transparent, var(--gold), transparent);
+  }
+
+  .result-vehicle {
+    font-family: 'Playfair Display', serif;
+    font-size: 22px;
+    color: var(--cream);
+    margin-bottom: 4px;
+  }
+
+  .result-trim {
+    font-size: 13px;
+    color: var(--gold);
+    font-family: 'DM Mono', monospace;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+
+  .result-badges {
+    display: flex; flex-wrap: wrap; gap: 8px;
+    justify-content: center;
+    margin-top: 14px;
+  }
+
+  .badge {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    padding: 5px 12px;
+    border-radius: 20px;
+    border: 1px solid;
+    text-transform: uppercase;
+  }
+  .badge-gold   { color: var(--gold);  border-color: var(--gold-dim);  background: var(--gold-glow); }
+  .badge-green  { color: var(--green); border-color: rgba(106,184,122,0.4); background: rgba(106,184,122,0.08); }
+  .badge-red    { color: var(--red);   border-color: rgba(212,91,91,0.4);   background: rgba(212,91,91,0.08); }
+  .badge-amber  { color: var(--amber); border-color: rgba(212,149,74,0.4);  background: rgba(212,149,74,0.08); }
+  .badge-muted  { color: var(--muted); border-color: var(--border);         background: transparent; }
+
+  /* ─── RESULT CARDS ─── */
+  .result-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+
+  .result-card-header {
+    padding: 10px 16px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--gold);
+    display: flex; align-items: center; gap: 8px;
+  }
+
+  .result-card-body { padding: 16px; }
+
+  /* ─── DATA ROWS ─── */
+  .data-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 14px;
+  }
+  .data-row:last-child { border-bottom: none; }
+
+  .data-label {
+    color: var(--muted);
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    letter-spacing: 0.05em;
+    flex-shrink: 0;
+    padding-top: 1px;
+  }
+
+  .data-value {
+    color: var(--text);
+    text-align: right;
+    font-weight: 500;
+  }
+
+  .data-value.highlight { color: var(--gold); font-family: 'DM Mono', monospace; }
+  .data-value.good      { color: var(--green); }
+  .data-value.warn      { color: var(--amber); }
+  .data-value.danger    { color: var(--red); }
+
+  /* ─── VALUATION BOX ─── */
+  .valuation-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px;
+    margin-bottom: 12px;
+  }
+
+  .val-main {
+    font-family: 'Playfair Display', serif;
+    font-size: 32px;
+    color: var(--gold);
+    letter-spacing: -0.01em;
+    line-height: 1;
+    margin-bottom: 4px;
+  }
+
+  .val-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  .val-range {
+    display: flex; gap: 16px; margin-top: 12px;
+  }
+
+  .val-item { flex: 1; }
+
+  .val-item-amt {
+    font-family: 'DM Mono', monospace;
+    font-size: 15px;
+    color: var(--text);
+    margin-bottom: 2px;
+  }
+
+  .val-item-lbl {
+    font-size: 10px;
+    color: var(--muted);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    font-family: 'DM Mono', monospace;
+  }
+
+  /* ─── DEAL METER ─── */
+  .deal-meter-wrap { margin: 14px 0; }
+
+  .deal-meter-labels {
+    display: flex; justify-content: space-between;
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+    letter-spacing: 0.08em;
+    margin-bottom: 5px;
+  }
+
+  .deal-meter-bar {
+    height: 6px;
+    background: var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+
+  .deal-meter-fill {
+    height: 100%;
+    border-radius: 3px;
+    background: linear-gradient(90deg, var(--red), var(--amber), var(--green));
+    transition: width 1s ease;
+  }
+
+  /* ─── RISK FLAGS ─── */
+  .risk-list {
+    display: flex; flex-direction: column; gap: 8px;
+  }
+
+  .risk-item {
+    display: flex; align-items: flex-start; gap: 10px;
+    padding: 10px 12px;
+    border-radius: 4px;
+    font-size: 13px;
+    line-height: 1.4;
+  }
+  .risk-item.high   { background: rgba(212,91,91,0.08);  border-left: 3px solid var(--red); }
+  .risk-item.medium { background: rgba(212,149,74,0.08); border-left: 3px solid var(--amber); }
+  .risk-item.low    { background: rgba(106,184,122,0.08);border-left: 3px solid var(--green); }
+
+  .risk-icon { font-size: 14px; flex-shrink: 0; margin-top: 1px; }
+
+  /* ─── ENGINE ANALYSIS ─── */
+  .engine-finding {
+    display: flex; flex-direction: column; gap: 4px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .engine-finding:last-child { border-bottom: none; }
+
+  .engine-finding-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  .engine-finding-value { font-size: 13px; line-height: 1.5; }
+
+  /* ─── CONDITION SCALE ─── */
+  .condition-scale {
+    display: flex; gap: 6px; margin: 10px 0;
+  }
+
+  .cond-pip {
+    flex: 1; height: 28px;
+    border-radius: 3px;
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    font-weight: 500;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--muted);
+    transition: all 0.3s;
+  }
+
+  .cond-pip.active-1 { background: rgba(106,184,122,0.2); border-color: var(--green); color: var(--green); }
+  .cond-pip.active-2 { background: rgba(106,184,122,0.12); border-color: rgba(106,184,122,0.5); color: var(--green); }
+  .cond-pip.active-3 { background: rgba(201,168,76,0.12); border-color: var(--gold-dim); color: var(--gold); }
+  .cond-pip.active-4 { background: rgba(212,149,74,0.12); border-color: rgba(212,149,74,0.5); color: var(--amber); }
+  .cond-pip.active-5 { background: rgba(212,91,91,0.1);  border-color: rgba(212,91,91,0.4);  color: var(--red); }
+
+  .cond-labels {
+    display: flex; justify-content: space-between;
+    font-family: 'DM Mono', monospace;
+    font-size: 9px;
+    color: var(--muted);
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+
+  /* ─── ERROR ─── */
+  .error-box {
+    background: rgba(212,91,91,0.08);
+    border: 1px solid rgba(212,91,91,0.3);
+    border-radius: var(--radius);
+    padding: 14px 16px;
+    color: var(--red);
+    font-size: 13px;
+    line-height: 1.5;
+    display: none;
+  }
+
+  /* ─── MISC ─── */
+  .divider { height: 1px; background: var(--border); margin: 12px 0; }
+
+  .comp-note {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+    line-height: 1.6;
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid var(--border);
+  }
+
+  .priority-banner {
+    padding: 12px 16px;
+    border-radius: var(--radius);
+    font-family: 'Playfair Display', serif;
+    font-size: 16px;
+    text-align: center;
+    letter-spacing: 0.03em;
+  }
+  .priority-buy    { background: rgba(106,184,122,0.1); color: var(--green); border: 1px solid rgba(106,184,122,0.3); }
+  .priority-watch  { background: rgba(212,149,74,0.1);  color: var(--amber); border: 1px solid rgba(212,149,74,0.3); }
+  .priority-pass   { background: rgba(212,91,91,0.1);   color: var(--red);   border: 1px solid rgba(212,91,91,0.3); }
+
+  input[type="file"] { display: none; }
+
+  .clear-all {
+    background: none;
+    border: none;
+    color: var(--muted);
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 4px;
+    transition: color 0.2s;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+  .clear-all:hover { color: var(--red); }
+
+  .photo-count {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 8px;
+  }
+  .photo-count span { color: var(--gold); }
+
+  .new-analysis-btn {
+    width: 100%;
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--muted);
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 14px;
+    cursor: pointer;
+    transition: all 0.2s;
+    margin-top: 4px;
+  }
+  .new-analysis-btn:hover { border-color: var(--gold-dim); color: var(--gold); }
+
+  /* ─── RESPONSIVE ─── */
+  @media (max-width: 400px) {
+    .photo-grid { grid-template-columns: repeat(3, 1fr); }
+    .val-main { font-size: 26px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo-badge">
+    <div class="logo-icon">🏎</div>
+    <h1>Classic <em>Iron</em></h1>
+  </div>
+  <p>AI-Powered Classic Car Analyzer</p>
+  <div class="gold-line"></div>
+</header>
+
+<main>
+
+  <!-- PHOTOS -->
+  <div class="section">
+    <div class="section-header">
+      <div class="sect-icon">📷</div>
+      <h2>Vehicle Photos</h2>
+      <button class="clear-all" onclick="clearAllPhotos()">Clear all</button>
+    </div>
+    <div class="section-body">
+      <div class="photo-grid" id="photoGrid"></div>
+      <div class="photo-count" id="photoCount">0 of 8 slots filled</div>
+    </div>
+  </div>
+
+  <!-- VIDEO -->
+  <div class="section">
+    <div class="section-header">
+      <div class="sect-icon">🎬</div>
+      <h2>Engine Video</h2>
+      <span class="sect-sub">OPTIONAL</span>
+    </div>
+    <div class="section-body">
+      <div class="video-controls">
+        <button class="btn-video" id="btnRecord" onclick="triggerVideo('capture')">
+          <span>⏺</span>
+          <span>Record</span>
+        </button>
+        <button class="btn-video" id="btnChoose" onclick="triggerVideo('library')">
+          <span>📁</span>
+          <span>Choose File</span>
+        </button>
+        <button class="btn-video" id="btnClearVideo" onclick="clearVideo()" style="display:none; flex:0.5; padding:14px 6px;">
+          <span>🗑</span>
+          <span>Clear</span>
+        </button>
+      </div>
+      <p class="video-hint" id="videoHint">
+        Record 15–30 sec of the engine running at idle.<br>
+        Unlocks acoustic analysis: knock, valve tick, exhaust smoke, hydraulics, transmission.
+      </p>
+    </div>
+  </div>
+  <input type="file" id="videoCapture" accept="video/*" capture="environment">
+  <input type="file" id="videoLibrary" accept="video/*">
+
+  <!-- NOTES -->
+  <div class="section">
+    <div class="section-header">
+      <div class="sect-icon">📝</div>
+      <h2>Listing Notes</h2>
+      <span class="sect-sub">OPTIONAL</span>
+    </div>
+    <div class="section-body">
+      <textarea id="notes" placeholder="Paste listing URL, asking price, seller notes, VIN, mileage, known issues, or any other context..."></textarea>
+    </div>
+  </div>
+
+  <!-- ANALYZE -->
+  <button class="btn-analyze" id="analyzeBtn" onclick="runAnalysis()">Analyze This Vehicle</button>
+
+  <!-- ERROR -->
+  <div class="error-box" id="errorBox"></div>
+
+  <!-- PROGRESS -->
+  <div id="progressSection">
+    <div class="progress-spinner"></div>
+    <div class="progress-label" id="progressLabel">Uploading Media</div>
+    <div class="progress-sub" id="progressSub">Preparing files for Gemini Vision...</div>
+  </div>
+
+  <!-- RESULTS -->
+  <div id="results"></div>
+
+</main>
+
+<!-- HIDDEN FILE INPUT FOR PHOTOS -->
+<input type="file" id="photoInput" accept="image/*" multiple>
+
+<script>
+// ─── STATE ───────────────────────────────────────────────────────────────────
+const SLOTS = [
+  { label: "Front", icon: "🚗" },
+  { label: "Rear", icon: "🔙" },
+  { label: "Driver Side", icon: "◀" },
+  { label: "Pass. Side", icon: "▶" },
+  { label: "Engine Bay", icon: "🔧" },
+  { label: "Interior", icon: "🪑" },
+  { label: "Undercarriage", icon: "⬇" },
+  { label: "VIN / Data\nPlates", icon: "🏷" },
+];
+
+let photos = new Array(8).fill(null); // { file, dataUrl }
+let videoFile = null;
+let videoCompressed = null;
+let currentSlot = -1;
+
+// ─── INIT ────────────────────────────────────────────────────────────────────
+window.addEventListener('load', () => {
+  buildGrid();
+
+  document.getElementById('videoCapture').addEventListener('change', handleVideoFile);
+  document.getElementById('videoLibrary').addEventListener('change', handleVideoFile);
+  document.getElementById('photoInput').addEventListener('change', handlePhotoFiles);
+});
+
+// ─── API KEY (injected by build.sh at deploy time) ───────────────────────────
+function getKey() {
+  if (typeof __gemini_api_key !== 'undefined' && __gemini_api_key) return __gemini_api_key;
+  console.error('GEMINI_API_KEY not injected. Check build.sh and Render env vars.');
+  return '';
+}
+
+// ─── PHOTO GRID ──────────────────────────────────────────────────────────────
+function buildGrid() {
+  const grid = document.getElementById('photoGrid');
+  grid.innerHTML = '';
+  SLOTS.forEach((s, i) => {
+    const slot = document.createElement('div');
+    slot.className = 'photo-slot' + (photos[i] ? ' has-photo' : '');
+    slot.id = `slot-${i}`;
+    slot.onclick = () => openPhotoSlot(i);
+
+    if (photos[i]) {
+      const img = document.createElement('img');
+      img.src = photos[i].dataUrl;
+      const rm = document.createElement('button');
+      rm.className = 'remove-btn';
+      rm.innerHTML = '✕';
+      rm.onclick = (e) => { e.stopPropagation(); removePhoto(i); };
+      slot.appendChild(img);
+      slot.appendChild(rm);
+    } else {
+      slot.innerHTML = `<div class="slot-icon">${s.icon}</div><div class="slot-label">${s.label}</div>`;
+    }
+    grid.appendChild(slot);
+  });
+  updatePhotoCount();
+}
+
+function openPhotoSlot(i) {
+  currentSlot = i;
+  document.getElementById('photoInput').click();
+}
+
+function handlePhotoFiles(e) {
+  const files = Array.from(e.target.files);
+  if (!files.length) return;
+
+  let idx = currentSlot >= 0 ? currentSlot : photos.findIndex(p => !p);
+  files.forEach(file => {
+    if (idx >= 8) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      photos[idx] = { file, dataUrl: ev.target.result };
+      buildGrid();
+      idx++;
+    };
+    reader.readAsDataURL(file);
+  });
+
+  e.target.value = '';
+  currentSlot = -1;
+}
+
+function removePhoto(i) {
+  photos[i] = null;
+  buildGrid();
+}
+
+function clearAllPhotos() {
+  photos = new Array(8).fill(null);
+  buildGrid();
+}
+
+function updatePhotoCount() {
+  const n = photos.filter(Boolean).length;
+  document.getElementById('photoCount').innerHTML =
+    `<span>${n}</span> of 8 slots filled`;
+}
+
+// ─── VIDEO ────────────────────────────────────────────────────────────────────
+function triggerVideo(mode) {
+  document.getElementById(mode === 'capture' ? 'videoCapture' : 'videoLibrary').click();
+}
+
+async function handleVideoFile(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  e.target.value = '';
+  videoFile = file;
+  videoCompressed = null;
+
+  setVideoActive(`${file.name.substring(0,20)} — compressing...`);
+  try {
+    videoCompressed = await compressVideo(file);
+    const mb = (videoCompressed.size / 1024 / 1024).toFixed(1);
+    setVideoActive(`✓ Ready — ${mb} MB (720p)`);
+  } catch(err) {
+    videoCompressed = file; // fallback: send original
+    const mb = (file.size / 1024 / 1024).toFixed(1);
+    setVideoActive(`✓ Ready — ${mb} MB (original)`);
+  }
+}
+
+function setVideoActive(label) {
+  document.getElementById('btnRecord').classList.add('active');
+  document.getElementById('btnChoose').classList.add('active');
+  document.getElementById('btnClearVideo').style.display = 'flex';
+  document.getElementById('videoHint').textContent = label;
+}
+
+function clearVideo() {
+  videoFile = null; videoCompressed = null;
+  document.getElementById('btnRecord').classList.remove('active');
+  document.getElementById('btnChoose').classList.remove('active');
+  document.getElementById('btnClearVideo').style.display = 'none';
+  document.getElementById('videoHint').textContent =
+    'Record 15–30 sec of the engine running at idle.\nUnlocks acoustic analysis: knock, valve tick, exhaust smoke, hydraulics, transmission.';
+}
+
+async function compressVideo(file) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const video = document.createElement('video');
+    video.src = url; video.muted = true; video.playsInline = true;
+    video.onloadedmetadata = () => {
+      const targetW = Math.min(video.videoWidth,  1280);
+      const targetH = Math.round(targetW * video.videoHeight / video.videoWidth);
+      const canvas = document.createElement('canvas');
+      canvas.width = targetW; canvas.height = targetH;
+      const ctx = canvas.getContext('2d');
+      const chunks = [];
+
+      let stream;
+      try { stream = canvas.captureStream(24); }
+      catch(e) { reject(e); return; }
+
+      // mix in audio
+      const aCtx = new AudioContext();
+      const src = aCtx.createMediaElementSource(video);
+      const dest = aCtx.createMediaStreamDestination();
+      src.connect(dest); src.connect(aCtx.destination);
+      dest.stream.getAudioTracks().forEach(t => stream.addTrack(t));
+
+      const mr = new MediaRecorder(stream, { mimeType: 'video/webm;codecs=vp8', videoBitsPerSecond: 1500000 });
+      mr.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
+      mr.onstop = () => {
+        URL.revokeObjectURL(url);
+        resolve(new File(chunks, 'compressed.webm', { type: 'video/webm' }));
+      };
+
+      video.onplay = () => {
+        mr.start(100);
+        const draw = () => {
+          if (video.paused || video.ended) { mr.stop(); return; }
+          ctx.drawImage(video, 0, 0, targetW, targetH);
+          requestAnimationFrame(draw);
+        };
+        requestAnimationFrame(draw);
+      };
+      video.play().catch(reject);
+    };
+    video.onerror = reject;
+  });
+}
+
+// ─── UPLOAD TO GEMINI FILES API ───────────────────────────────────────────────
+async function uploadFile(file, apiKey, mimeType) {
+  const startResp = await fetch(
+    `https://generativelanguage.googleapis.com/upload/v1beta/files?key=${apiKey}`,
+    {
+      method: 'POST',
+      headers: {
+        'X-Goog-Upload-Protocol': 'resumable',
+        'X-Goog-Upload-Command': 'start',
+        'X-Goog-Upload-Header-Content-Length': file.size,
+        'X-Goog-Upload-Header-Content-Type': mimeType,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ file: { display_name: file.name || 'upload' } })
+    }
+  );
+  const uploadUrl = startResp.headers.get('X-Goog-Upload-URL');
+  if (!uploadUrl) throw new Error('Failed to get upload URL');
+
+  const uploadResp = await fetch(uploadUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Length': file.size,
+      'X-Goog-Upload-Offset': '0',
+      'X-Goog-Upload-Command': 'upload, finalize'
+    },
+    body: file
+  });
+  if (!uploadResp.ok) throw new Error(`Upload failed: ${uploadResp.status}`);
+  const data = await uploadResp.json();
+
+  const fileUri = data.file?.uri;
+  const fileName = data.file?.name;
+  if (!fileUri) throw new Error('No file URI in response');
+
+  // poll until ACTIVE
+  if (fileName) {
+    for (let i = 0; i < 20; i++) {
+      await new Promise(r => setTimeout(r, 2000));
+      const s = await fetch(`https://generativelanguage.googleapis.com/v1beta/${fileName}?key=${apiKey}`);
+      if (s.ok) {
+        const sd = await s.json();
+        if (sd.state === 'ACTIVE') break;
+        if (sd.state === 'FAILED') throw new Error('File processing failed');
+      }
+    }
+  }
+  return { uri: fileUri, mimeType };
+}
+
+// ─── MAIN ANALYSIS ───────────────────────────────────────────────────────────
+async function runAnalysis() {
+  const apiKey = getKey();
+  if (!apiKey) { showError('API key not configured. Check Render environment variables and build.sh.'); return; }
+
+  const filled = photos.filter(Boolean);
+  if (filled.length === 0) { showError('Please add at least one photo.'); return; }
+
+  hideError();
+  showProgress('Preparing Media', 'Building request for Gemini Vision...');
+  document.getElementById('analyzeBtn').disabled = true;
+  document.getElementById('results').style.display = 'none';
+
+  try {
+    // ── Build parts array ──
+    const parts = [];
+    const notes = document.getElementById('notes').value.trim();
+
+    // Photos: convert to base64 inline (faster for images)
+    for (const p of filled) {
+      if (!p) continue;
+      const b64 = p.dataUrl.split(',')[1];
+      const mime = p.dataUrl.split(';')[0].split(':')[1];
+      parts.push({ inlineData: { mimeType: mime, data: b64 } });
+    }
+
+    // Video: upload via Files API
+    let hasVideo = false;
+    if (videoCompressed || videoFile) {
+      setProgress('Uploading Video', 'Sending to Gemini Files API...');
+      const vf = videoCompressed || videoFile;
+      const { uri, mimeType } = await uploadFile(vf, apiKey, vf.type || 'video/mp4');
+      parts.push({ fileData: { mimeType, fileUri: uri } });
+      hasVideo = true;
+    }
+
+    const videoInstruction = hasVideo ? `
+6) ENGINE & MECHANICAL ANALYSIS — A video has been provided. Analyze all mechanical sounds and visual cues:
+   - IDLE QUALITY: Is the idle smooth and consistent, or lumpy/hunting/rough?
+   - VALVE TRAIN: Listen for ticking (lifters, pushrods, rocker arms). Note severity.
+   - BOTTOM END: Listen for rod knock (sharp rhythmic knock) or main bearing knock (deeper thud).
+   - EXHAUST LEAKS: Ticking that matches RPM but sounds external/surface-level (cracked manifold).
+   - VACUUM LEAKS: Hissing at idle; may cause rough idle or high/hunting RPM.
+   - EXHAUST SMOKE: Blue (oil burning / rings / valve seals), Black (rich mixture / carb issue), White (coolant / head gasket).
+   - CARBURETOR / THROTTLE BODY: Listen for hesitation, stumble, or flat spot on throttle blip.
+   - TRANSMISSION (if demonstrated): Note slipping, delayed engagement, harsh shifts, or whining.
+   - OVERALL HEALTH RATING: Excellent / Good / Fair / Poor — explain reasoning.
+   - RECOMMENDED TESTS: Compression test, leak-down, borescope, etc., based on findings.
+   IMPORTANT: Sounds matching ENGINE RPM = internal engine issue. Sounds matching MACHINE MOVEMENT or throttle = carb/intake/exhaust.
+   Populate the "engineAnalysis" field in the JSON.` : '';
+
+    const prompt = `You are an expert classic car appraiser and mechanic with decades of experience in collector vehicles, muscle cars, European classics, and vintage American iron. Analyze the provided photos${hasVideo ? ' and engine video' : ''} and return ONLY a valid JSON object with no markdown, no explanation.
+
+ANALYSIS INSTRUCTIONS:
+1) VEHICLE IDENTIFICATION — Identify Year, Make, Model, Trim/Sub-model (e.g. "SS 396", "Mach 1", "GTO Judge"). Decode any visible VIN. Note body style, color, and apparent factory options.
+
+2) ORIGINALITY ASSESSMENT — Are the numbers matching? Look for engine stamp, VIN tag, cowl tag, door jamb sticker. Is the vehicle unrestored, properly restored, or modified? Note any obvious non-original components.
+
+3) CONDITION RATING — Rate on Hagerty 1–5 scale:
+   #1 = Concours / 100-point show car
+   #2 = Excellent / Driver-quality show car, no flaws
+   #3 = Good / Well-maintained driver, minor cosmetic flaws
+   #4 = Driver / Presentable but needs minor attention
+   #5 = Project / Needs restoration or significant repair
+   Justify your rating with specific observations.
+
+4) MARKET VALUATION — Estimate fair market value using Hagerty Price Guide benchmarks, Bring a Trailer (BaT) recent sales, Barrett-Jackson, and Cars & Bids sold results. Provide:
+   - Condition-adjusted retail value (what a dealer would ask)
+   - Private party range (low–high)
+   - Auction estimate
+   - Key value drivers or detractors
+
+5) RISK & INSPECTION FLAGS — Identify any of these if visible: NUMBERS_MISMATCH, REPAINTED (recent non-original repaint), ACCIDENT_DAMAGE (body filler, misaligned panels), HEAVY_RUST (structural concern), FLOOR_PAN_RUST, FRAME_DAMAGE, ENGINE_SWAP, TRANSMISSION_SWAP, ODOMETER_ROLLBACK (if implied by condition vs. mileage), TITLE_ISSUE, MODIFIED_FROM_STOCK, MISSING_TRIM. For each flag: severity (high/medium/low) and explanation.
+${videoInstruction}
+
+${notes ? `ADDITIONAL CONTEXT FROM SELLER / LISTING:\n${notes}` : ''}
+
+RESPOND WITH ONLY THIS JSON (no markdown fences):
+{
+  "vehicleId": {
+    "year": "",
+    "make": "",
+    "model": "",
+    "trim": "",
+    "bodyStyle": "",
+    "color": "",
+    "vinDecoded": "",
+    "estimatedMileage": "",
+    "factoryOptions": []
+  },
+  "originality": {
+    "matchingNumbers": true,
+    "numberDetails": "",
+    "status": "Unrestored | Restored | Modified | Unknown",
+    "notes": ""
+  },
+  "condition": {
+    "hagertyRating": 3,
+    "label": "",
+    "justification": ""
+  },
+  "valuation": {
+    "conditionAdjustedRetail": "",
+    "privatePartyLow": "",
+    "privatePartyHigh": "",
+    "auctionEstimate": "",
+    "keyValueDrivers": [],
+    "keyValueDetractors": [],
+    "compNotes": ""
+  },
+  "dealAnalysis": {
+    "askingPrice": "",
+    "dealQuality": "Strong Buy | Buy | Watch | Overpriced | Pass",
+    "dealScore": 70,
+    "potentialProfit": "",
+    "recommendation": "",
+    "maxOffer": ""
+  },
+  "riskFlags": [
+    { "code": "", "severity": "high|medium|low", "description": "" }
+  ],
+  "engineAnalysis": {
+    "available": false,
+    "idleQuality": "",
+    "valveTrain": "",
+    "bottomEnd": "",
+    "exhaustLeaks": "",
+    "vacuumLeaks": "",
+    "exhaustSmoke": "",
+    "carburetorThrottle": "",
+    "transmissionNotes": "",
+    "overallHealth": "",
+    "recommendedTests": [],
+    "engineRiskFlags": []
+  }
+}`;
+
+    parts.push({ text: prompt });
+
+    setProgress('Analyzing Vehicle', 'Gemini Vision is inspecting photos and audio...');
+
+    const resp = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ role: 'user', parts }],
+          generationConfig: { temperature: 0.2, maxOutputTokens: 2000 }
+        })
+      }
+    );
+
+    if (!resp.ok) {
+      const err = await resp.json();
+      throw new Error(err.error?.message || `API error ${resp.status}`);
+    }
+
+    const data = await resp.json();
+    let raw = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    raw = raw.replace(/```json|```/g, '').trim();
+
+    let result;
+    try { result = JSON.parse(raw); }
+    catch(e) { throw new Error('Could not parse Gemini response. Try again.'); }
+
+    hideProgress();
+    renderResults(result);
+
+  } catch(err) {
+    hideProgress();
+    showError(err.message);
+    document.getElementById('analyzeBtn').disabled = false;
+  }
+}
+
+// ─── RENDER RESULTS ───────────────────────────────────────────────────────────
+function renderResults(r) {
+  const container = document.getElementById('results');
+  const vid = r.vehicleId || {};
+  const orig = r.originality || {};
+  const cond = r.condition || {};
+  const val = r.valuation || {};
+  const deal = r.dealAnalysis || {};
+  const flags = r.riskFlags || [];
+  const eng = r.engineAnalysis || {};
+
+  const priorityClass = {
+    'Strong Buy': 'priority-buy', 'Buy': 'priority-buy',
+    'Watch': 'priority-watch',
+    'Overpriced': 'priority-pass', 'Pass': 'priority-pass'
+  }[deal.dealQuality] || 'priority-watch';
+
+  const condClass = (n) => ['active-1','active-2','active-3','active-4','active-5'][n-1] || '';
+
+  // Matching numbers badge
+  const numbersMatch = orig.matchingNumbers;
+  const numBadge = numbersMatch === true
+    ? `<span class="badge badge-green">Numbers Match</span>`
+    : numbersMatch === false
+    ? `<span class="badge badge-red">Non-Matching</span>`
+    : `<span class="badge badge-muted">Numbers Unknown</span>`;
+
+  const statusColors = { Unrestored: 'badge-gold', Restored: 'badge-green', Modified: 'badge-amber', Unknown: 'badge-muted' };
+  const statusBadge = `<span class="badge ${statusColors[orig.status] || 'badge-muted'}">${orig.status || 'Unknown'}</span>`;
+
+  // Risk summary badge
+  const highFlags = flags.filter(f => f.severity === 'high');
+  const riskBadge = highFlags.length
+    ? `<span class="badge badge-red">⚠ ${highFlags.length} High-Risk Flag${highFlags.length > 1 ? 's' : ''}</span>`
+    : flags.length
+    ? `<span class="badge badge-amber">${flags.length} Flag${flags.length > 1 ? 's' : ''}</span>`
+    : `<span class="badge badge-green">Clean Report</span>`;
+
+  const scoreWidth = Math.max(0, Math.min(100, deal.dealScore || 50));
+
+  // Risk flags HTML
+  const flagsHtml = flags.length
+    ? flags.map(f => `
+      <div class="risk-item ${f.severity}">
+        <div class="risk-icon">${f.severity === 'high' ? '🔴' : f.severity === 'medium' ? '🟡' : '🟢'}</div>
+        <div><strong>${f.code?.replace(/_/g, ' ')}</strong> — ${f.description}</div>
+      </div>`).join('')
+    : `<div class="risk-item low"><div class="risk-icon">🟢</div><div>No significant risk flags identified from available photos.</div></div>`;
+
+  // Engine analysis HTML
+  const engHtml = eng.available !== false && (eng.overallHealth || eng.idleQuality) ? `
+    <div class="result-card">
+      <div class="result-card-header">🎬 Engine & Mechanical Analysis</div>
+      <div class="result-card-body">
+        ${[
+          ['Idle Quality', eng.idleQuality],
+          ['Valve Train', eng.valveTrain],
+          ['Bottom End', eng.bottomEnd],
+          ['Exhaust Leaks', eng.exhaustLeaks],
+          ['Vacuum Leaks', eng.vacuumLeaks],
+          ['Exhaust Smoke', eng.exhaustSmoke],
+          ['Carb / Throttle', eng.carburetorThrottle],
+          ['Transmission', eng.transmissionNotes],
+          ['Overall Health', eng.overallHealth],
+        ].filter(([, v]) => v).map(([k, v]) => `
+          <div class="engine-finding">
+            <div class="engine-finding-label">${k}</div>
+            <div class="engine-finding-value">${v}</div>
+          </div>`).join('')}
+        ${eng.recommendedTests?.length ? `
+          <div class="engine-finding">
+            <div class="engine-finding-label">Recommended Tests</div>
+            <div class="engine-finding-value">${eng.recommendedTests.join(' • ')}</div>
+          </div>` : ''}
+        ${eng.engineRiskFlags?.length ? `
+          <div style="margin-top:12px; padding:10px 12px; background:rgba(212,91,91,0.08); border-left:3px solid var(--red); border-radius:4px; color:var(--red); font-size:13px;">
+            ⚠ ${eng.engineRiskFlags.join(' • ')}
+          </div>` : ''}
+      </div>
+    </div>` : '';
+
+  container.innerHTML = `
+    <!-- VEHICLE HEADER -->
+    <div class="result-header">
+      <div class="result-vehicle">${vid.year || ''} ${vid.make || ''} ${vid.model || ''}</div>
+      <div class="result-trim">${vid.trim || vid.bodyStyle || ''}</div>
+      <div class="result-badges">
+        ${numBadge}
+        ${statusBadge}
+        <span class="badge badge-gold">Hagerty #${cond.hagertyRating || '?'}</span>
+        ${riskBadge}
+      </div>
+    </div>
+
+    <!-- DEAL PRIORITY -->
+    <div class="priority-banner ${priorityClass}">
+      ${deal.dealQuality || 'Evaluating...'} — ${deal.recommendation || ''}
+    </div>
+
+    <!-- VALUATION -->
+    <div class="result-card">
+      <div class="result-card-header">💰 Market Valuation</div>
+      <div class="result-card-body">
+        <div class="valuation-box">
+          <div class="val-label">Condition-Adjusted Retail</div>
+          <div class="val-main">${val.conditionAdjustedRetail || '—'}</div>
+          <div class="val-range">
+            <div class="val-item">
+              <div class="val-item-amt">${val.privatePartyLow || '—'}</div>
+              <div class="val-item-lbl">Pvt Party Low</div>
+            </div>
+            <div class="val-item">
+              <div class="val-item-amt">${val.privatePartyHigh || '—'}</div>
+              <div class="val-item-lbl">Pvt Party High</div>
+            </div>
+            <div class="val-item">
+              <div class="val-item-amt">${val.auctionEstimate || '—'}</div>
+              <div class="val-item-lbl">Auction Est.</div>
+            </div>
+          </div>
+        </div>
+
+        ${deal.askingPrice ? `
+        <div class="data-row">
+          <div class="data-label">Asking Price</div>
+          <div class="data-value">${deal.askingPrice}</div>
+        </div>` : ''}
+        ${deal.maxOffer ? `
+        <div class="data-row">
+          <div class="data-label">Max Offer</div>
+          <div class="data-value highlight">${deal.maxOffer}</div>
+        </div>` : ''}
+        ${deal.potentialProfit ? `
+        <div class="data-row">
+          <div class="data-label">Potential Upside</div>
+          <div class="data-value good">${deal.potentialProfit}</div>
+        </div>` : ''}
+
+        <div class="deal-meter-wrap">
+          <div class="deal-meter-labels"><span>WEAK DEAL</span><span>STRONG DEAL</span></div>
+          <div class="deal-meter-bar">
+            <div class="deal-meter-fill" style="width:${scoreWidth}%"></div>
+          </div>
+        </div>
+
+        ${val.keyValueDrivers?.length ? `
+        <div class="data-row">
+          <div class="data-label">Value Drivers</div>
+          <div class="data-value good" style="font-size:12px;">${val.keyValueDrivers.join(', ')}</div>
+        </div>` : ''}
+        ${val.keyValueDetractors?.length ? `
+        <div class="data-row">
+          <div class="data-label">Detractors</div>
+          <div class="data-value danger" style="font-size:12px;">${val.keyValueDetractors.join(', ')}</div>
+        </div>` : ''}
+
+        ${val.compNotes ? `<div class="comp-note">${val.compNotes}</div>` : ''}
+      </div>
+    </div>
+
+    <!-- CONDITION & ORIGINALITY -->
+    <div class="result-card">
+      <div class="result-card-header">🏆 Condition & Originality</div>
+      <div class="result-card-body">
+        <div class="condition-scale">
+          ${[1,2,3,4,5].map(n => `<div class="cond-pip ${n === cond.hagertyRating ? condClass(n) : ''}">#${n}</div>`).join('')}
+        </div>
+        <div class="cond-labels">
+          <span>Concours</span><span>Excellent</span><span>Good</span><span>Driver</span><span>Project</span>
+        </div>
+        ${cond.justification ? `<div style="margin-top:12px; font-size:13px; color:var(--text); line-height:1.6;">${cond.justification}</div>` : ''}
+        <div class="divider"></div>
+        <div class="data-row">
+          <div class="data-label">Numbers Status</div>
+          <div class="data-value">${orig.numberDetails || (numbersMatch ? 'Matching' : 'Non-matching') }</div>
+        </div>
+        ${orig.notes ? `<div class="data-row">
+          <div class="data-label">Originality Notes</div>
+          <div class="data-value" style="font-size:13px;">${orig.notes}</div>
+        </div>` : ''}
+      </div>
+    </div>
+
+    <!-- VEHICLE DETAILS -->
+    <div class="result-card">
+      <div class="result-card-header">🔍 Vehicle Details</div>
+      <div class="result-card-body">
+        ${[
+          ['VIN Decoded', vid.vinDecoded],
+          ['Mileage', vid.estimatedMileage],
+          ['Color', vid.color],
+          ['Body Style', vid.bodyStyle],
+          ['Factory Options', vid.factoryOptions?.join(', ')],
+        ].filter(([, v]) => v).map(([k, v]) => `
+          <div class="data-row">
+            <div class="data-label">${k}</div>
+            <div class="data-value">${v}</div>
+          </div>`).join('')}
+      </div>
+    </div>
+
+    <!-- ENGINE ANALYSIS (conditional) -->
+    ${engHtml}
+
+    <!-- RISK FLAGS -->
+    <div class="result-card">
+      <div class="result-card-header">⚠ Risk Flags & Inspection Notes</div>
+      <div class="result-card-body">
+        <div class="risk-list">${flagsHtml}</div>
+      </div>
+    </div>
+
+    <!-- NEW ANALYSIS -->
+    <button class="new-analysis-btn" onclick="newAnalysis()">↩ New Analysis</button>
+  `;
+
+  container.style.display = 'flex';
+  container.style.flexDirection = 'column';
+  container.style.gap = '14px';
+  document.getElementById('analyzeBtn').disabled = false;
+  container.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function newAnalysis() {
+  document.getElementById('results').style.display = 'none';
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// ─── PROGRESS / ERROR ─────────────────────────────────────────────────────────
+function showProgress(label, sub) {
+  document.getElementById('progressSection').style.display = 'block';
+  document.getElementById('progressLabel').textContent = label;
+  document.getElementById('progressSub').textContent = sub;
+}
+
+function setProgress(label, sub) {
+  document.getElementById('progressLabel').textContent = label;
+  document.getElementById('progressSub').textContent = sub;
+}
+
+function hideProgress() {
+  document.getElementById('progressSection').style.display = 'none';
+}
+
+function showError(msg) {
+  const box = document.getElementById('errorBox');
+  box.textContent = msg;
+  box.style.display = 'block';
+}
+
+function hideError() {
+  document.getElementById('errorBox').style.display = 'none';
+}
+</script>
+</body>
+</html>
