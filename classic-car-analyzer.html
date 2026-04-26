@@ -710,8 +710,8 @@
         </button>
       </div>
       <p class="video-hint" id="videoHint">
-        Record 15–30 sec of the engine running at idle.<br>
-        Unlocks acoustic analysis: knock, valve tick, exhaust smoke, hydraulics, transmission.
+        15–30 sec at idle. Cold start is ideal (captures choke &amp; warm-up behavior) but a warm engine video works great too — knock, valve tick, smoke &amp; vacuum leaks are just as audible.<br>
+        Video alone is enough for engine-only analysis.
       </p>
     </div>
   </div>
@@ -748,8 +748,26 @@
 
 </main>
 
-<!-- HIDDEN FILE INPUT FOR PHOTOS -->
-<input type="file" id="photoInput" accept="image/*" multiple>
+<!-- HIDDEN FILE INPUTS FOR PHOTOS -->
+<input type="file" id="photoCameraInput" accept="image/*" capture="environment">
+<input type="file" id="photoLibraryInput" accept="image/*">
+
+<!-- PHOTO PICKER MODAL -->
+<div id="photoPickerModal" style="display:none; position:fixed; inset:0; z-index:1000; align-items:flex-end; justify-content:center;">
+  <div id="photoPickerOverlay" onclick="closePhotoPicker()" style="position:absolute; inset:0; background:rgba(0,0,0,0.6);"></div>
+  <div style="position:relative; width:100%; max-width:640px; background:var(--card); border:1px solid var(--border); border-bottom:none; border-radius:12px 12px 0 0; padding:20px 16px 32px; display:flex; flex-direction:column; gap:10px;">
+    <div style="font-family:'Playfair Display',serif; font-size:14px; color:var(--muted); text-align:center; margin-bottom:4px; letter-spacing:0.05em;" id="pickerSlotLabel">Add Photo</div>
+    <button onclick="triggerPhotoCamera()" style="display:flex; align-items:center; gap:14px; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:16px; color:var(--text); font-family:'DM Sans',sans-serif; font-size:15px; cursor:pointer; transition:border-color 0.2s;" onmouseover="this.style.borderColor='var(--gold-dim)'" onmouseout="this.style.borderColor='var(--border)'">
+      <span style="font-size:24px;">📷</span>
+      <div style="text-align:left;"><div style="font-weight:500;">Take Photo</div><div style="font-size:12px; color:var(--muted); margin-top:2px;">Open camera</div></div>
+    </button>
+    <button onclick="triggerPhotoLibrary()" style="display:flex; align-items:center; gap:14px; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:16px; color:var(--text); font-family:'DM Sans',sans-serif; font-size:15px; cursor:pointer; transition:border-color 0.2s;" onmouseover="this.style.borderColor='var(--gold-dim)'" onmouseout="this.style.borderColor='var(--border)'">
+      <span style="font-size:24px;">🖼</span>
+      <div style="text-align:left;"><div style="font-weight:500;">Upload from Library</div><div style="font-size:12px; color:var(--muted); margin-top:2px;">Choose existing photo</div></div>
+    </button>
+    <button onclick="closePhotoPicker()" style="margin-top:4px; background:none; border:1px solid var(--border); border-radius:var(--radius); padding:12px; color:var(--muted); font-family:'DM Mono',monospace; font-size:12px; letter-spacing:0.1em; cursor:pointer;">CANCEL</button>
+  </div>
+</div>
 
 <script>
 // ─── STATE ───────────────────────────────────────────────────────────────────
@@ -775,7 +793,8 @@ window.addEventListener('load', () => {
 
   document.getElementById('videoCapture').addEventListener('change', handleVideoFile);
   document.getElementById('videoLibrary').addEventListener('change', handleVideoFile);
-  document.getElementById('photoInput').addEventListener('change', handlePhotoFiles);
+  document.getElementById('photoCameraInput').addEventListener('change', handlePhotoFiles);
+  document.getElementById('photoLibraryInput').addEventListener('change', handlePhotoFiles);
 });
 
 // ─── API KEY (injected by build.sh at deploy time) ───────────────────────────
@@ -814,7 +833,24 @@ function buildGrid() {
 
 function openPhotoSlot(i) {
   currentSlot = i;
-  document.getElementById('photoInput').click();
+  const label = SLOTS[i]?.label || 'Photo';
+  document.getElementById('pickerSlotLabel').textContent = label;
+  const modal = document.getElementById('photoPickerModal');
+  modal.style.display = 'flex';
+}
+
+function closePhotoPicker() {
+  document.getElementById('photoPickerModal').style.display = 'none';
+}
+
+function triggerPhotoCamera() {
+  closePhotoPicker();
+  document.getElementById('photoCameraInput').click();
+}
+
+function triggerPhotoLibrary() {
+  closePhotoPicker();
+  document.getElementById('photoLibraryInput').click();
 }
 
 function handlePhotoFiles(e) {
@@ -835,6 +871,8 @@ function handlePhotoFiles(e) {
 
   e.target.value = '';
   currentSlot = -1;
+  document.getElementById('photoCameraInput').value = '';
+  document.getElementById('photoLibraryInput').value = '';
 }
 
 function removePhoto(i) {
@@ -995,7 +1033,8 @@ async function runAnalysis() {
   if (!apiKey) { showError('API key not configured. Check Render environment variables and build.sh.'); return; }
 
   const filled = photos.filter(Boolean);
-  if (filled.length === 0) { showError('Please add at least one photo.'); return; }
+  const hasVideoReady = !!(videoCompressed || videoFile);
+  if (filled.length === 0 && !hasVideoReady) { showError('Please add at least one photo or an engine video.'); return; }
 
   hideError();
   showProgress('Preparing Media', 'Building request for Gemini Vision...');
@@ -1027,20 +1066,56 @@ async function runAnalysis() {
 
     const videoInstruction = hasVideo ? `
 6) ENGINE & MECHANICAL ANALYSIS — A video has been provided. Analyze all mechanical sounds and visual cues:
-   - IDLE QUALITY: Is the idle smooth and consistent, or lumpy/hunting/rough?
+   - IDLE QUALITY: Is the idle smooth and consistent, or lumpy/hunting/rough? If this appears to be a cold start, note warm-up behavior and choke operation.
    - VALVE TRAIN: Listen for ticking (lifters, pushrods, rocker arms). Note severity.
    - BOTTOM END: Listen for rod knock (sharp rhythmic knock) or main bearing knock (deeper thud).
    - EXHAUST LEAKS: Ticking that matches RPM but sounds external/surface-level (cracked manifold).
    - VACUUM LEAKS: Hissing at idle; may cause rough idle or high/hunting RPM.
-   - EXHAUST SMOKE: Blue (oil burning / rings / valve seals), Black (rich mixture / carb issue), White (coolant / head gasket).
+   - EXHAUST SMOKE: Blue (oil burning / rings / valve seals), Black (rich mixture / carb issue), White (coolant / head gasket). Note if this is initial cold start smoke vs. sustained.
    - CARBURETOR / THROTTLE BODY: Listen for hesitation, stumble, or flat spot on throttle blip.
    - TRANSMISSION (if demonstrated): Note slipping, delayed engagement, harsh shifts, or whining.
    - OVERALL HEALTH RATING: Excellent / Good / Fair / Poor — explain reasoning.
    - RECOMMENDED TESTS: Compression test, leak-down, borescope, etc., based on findings.
-   IMPORTANT: Sounds matching ENGINE RPM = internal engine issue. Sounds matching MACHINE MOVEMENT or throttle = carb/intake/exhaust.
+   IMPORTANT: Sounds matching ENGINE RPM = internal engine issue. Sounds matching throttle input = carb/intake/exhaust.
    Populate the "engineAnalysis" field in the JSON.` : '';
 
-    const prompt = `You are an expert classic car appraiser and mechanic with decades of experience in collector vehicles, muscle cars, European classics, and vintage American iron. Analyze the provided photos${hasVideo ? ' and engine video' : ''} and return ONLY a valid JSON object with no markdown, no explanation.
+    // ── Video-only mode: stripped prompt focused purely on engine analysis ──
+    const videoOnlyPrompt = `You are an expert classic car mechanic with decades of experience diagnosing engines by sound and visual inspection. A video of a running engine has been provided. Return ONLY a valid JSON object with no markdown, no explanation.
+
+Analyze ALL mechanical sounds and visual cues in the video:
+- IDLE QUALITY: Smooth/consistent vs. lumpy/hunting/rough. If this appears to be a cold start, note warm-up behavior and choke operation. Do not assume cold start if not evident.
+- VALVE TRAIN: Ticking from lifters, pushrods, or rocker arms. Note severity.
+- BOTTOM END: Rod knock (sharp rhythmic knock at RPM) or main bearing knock (deeper thud).
+- EXHAUST LEAKS: Surface-level ticking matching RPM — cracked manifold or header leak.
+- VACUUM LEAKS: Hissing at idle causing rough idle or high/hunting RPM.
+- EXHAUST SMOKE: Blue = oil burning (rings/valve seals). Black = rich mixture/carb. White = coolant/head gasket. Note if initial cold-start smoke vs. sustained.
+- CARBURETOR / THROTTLE: Hesitation, stumble, or flat spot on throttle blip if demonstrated.
+- TRANSMISSION: Slipping, delayed engagement, harsh shifts, or whining if demonstrated.
+- OVERALL HEALTH: Excellent / Good / Fair / Poor with full explanation.
+- RECOMMENDED TESTS: List specific tests warranted (compression, leak-down, borescope, cooling system pressure test, etc.).
+IMPORTANT: Sounds matching ENGINE RPM = internal engine issue. Sounds matching throttle input = carb/intake/exhaust.
+
+${notes ? `ADDITIONAL CONTEXT:\n${notes}` : ''}
+
+RESPOND WITH ONLY THIS JSON:
+{
+  "engineAnalysis": {
+    "available": true,
+    "idleQuality": "",
+    "valveTrain": "",
+    "bottomEnd": "",
+    "exhaustLeaks": "",
+    "vacuumLeaks": "",
+    "exhaustSmoke": "",
+    "carburetorThrottle": "",
+    "transmissionNotes": "",
+    "overallHealth": "",
+    "recommendedTests": [],
+    "engineRiskFlags": []
+  }
+}`;
+
+    const fullPrompt = `You are an expert classic car appraiser and mechanic with decades of experience in collector vehicles, muscle cars, European classics, and vintage American iron. Analyze the provided photos${hasVideo ? ' and engine video' : ''} and return ONLY a valid JSON object with no markdown, no explanation.
 
 ANALYSIS INSTRUCTIONS:
 1) VEHICLE IDENTIFICATION — Identify Year, Make, Model, Trim/Sub-model (e.g. "SS 396", "Mach 1", "GTO Judge"). Decode any visible VIN. Note body style, color, and apparent factory options.
@@ -1126,9 +1201,12 @@ RESPOND WITH ONLY THIS JSON (no markdown fences):
   }
 }`;
 
+    const isVideoOnly = filled.length === 0 && hasVideo;
+    const prompt = isVideoOnly ? videoOnlyPrompt : fullPrompt;
+
     parts.push({ text: prompt });
 
-    setProgress('Analyzing Vehicle', 'Gemini Vision is inspecting photos and audio...');
+    setProgress('Analyzing Vehicle', isVideoOnly ? 'Gemini is listening to your engine...' : 'Gemini Vision is inspecting photos and audio...');
 
     const resp = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
@@ -1156,7 +1234,7 @@ RESPOND WITH ONLY THIS JSON (no markdown fences):
     catch(e) { throw new Error('Could not parse Gemini response. Try again.'); }
 
     hideProgress();
-    renderResults(result);
+    renderResults(result, isVideoOnly);
 
   } catch(err) {
     hideProgress();
@@ -1166,7 +1244,62 @@ RESPOND WITH ONLY THIS JSON (no markdown fences):
 }
 
 // ─── RENDER RESULTS ───────────────────────────────────────────────────────────
-function renderResults(r) {
+function renderResults(r, isVideoOnly) {
+  const container = document.getElementById('results');
+
+  // ── VIDEO-ONLY MODE: just show engine analysis card ──
+  if (isVideoOnly) {
+    const eng = r.engineAnalysis || {};
+    const healthColor = { Excellent: 'var(--green)', Good: 'var(--green)', Fair: 'var(--amber)', Poor: 'var(--red)' }[eng.overallHealth] || 'var(--muted)';
+    container.innerHTML = `
+      <div class="result-header">
+        <div class="result-vehicle" style="font-size:18px;">Engine Acoustic Analysis</div>
+        <div class="result-trim">Video-Only Mode</div>
+        <div class="result-badges">
+          <span class="badge badge-gold" style="color:${healthColor}; border-color:${healthColor};">
+            ${eng.overallHealth || 'Analyzed'}
+          </span>
+          ${eng.engineRiskFlags?.length ? `<span class="badge badge-red">⚠ ${eng.engineRiskFlags.length} Risk Flag${eng.engineRiskFlags.length > 1 ? 's' : ''}</span>` : '<span class="badge badge-green">No Risk Flags</span>'}
+        </div>
+      </div>
+      <div class="result-card">
+        <div class="result-card-header">🎬 Engine & Mechanical Analysis</div>
+        <div class="result-card-body">
+          ${[
+            ['Idle Quality', eng.idleQuality],
+            ['Valve Train', eng.valveTrain],
+            ['Bottom End', eng.bottomEnd],
+            ['Exhaust Leaks', eng.exhaustLeaks],
+            ['Vacuum Leaks', eng.vacuumLeaks],
+            ['Exhaust Smoke', eng.exhaustSmoke],
+            ['Carb / Throttle', eng.carburetorThrottle],
+            ['Transmission', eng.transmissionNotes],
+            ['Overall Health', eng.overallHealth],
+          ].filter(([, v]) => v).map(([k, v]) => `
+            <div class="engine-finding">
+              <div class="engine-finding-label">${k}</div>
+              <div class="engine-finding-value">${v}</div>
+            </div>`).join('')}
+          ${eng.recommendedTests?.length ? `
+            <div class="engine-finding">
+              <div class="engine-finding-label">Recommended Tests</div>
+              <div class="engine-finding-value">${eng.recommendedTests.join(' • ')}</div>
+            </div>` : ''}
+          ${eng.engineRiskFlags?.length ? `
+            <div style="margin-top:12px; padding:10px 12px; background:rgba(212,91,91,0.08); border-left:3px solid var(--red); border-radius:4px; color:var(--red); font-size:13px;">
+              ⚠ ${eng.engineRiskFlags.join(' • ')}
+            </div>` : ''}
+        </div>
+      </div>
+      <button class="new-analysis-btn" onclick="newAnalysis()">↩ New Analysis</button>
+    `;
+    container.style.display = 'flex';
+    container.style.flexDirection = 'column';
+    container.style.gap = '14px';
+    document.getElementById('analyzeBtn').disabled = false;
+    container.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    return;
+  }
   const container = document.getElementById('results');
   const vid = r.vehicleId || {};
   const orig = r.originality || {};
